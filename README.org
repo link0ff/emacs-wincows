@@ -1,0 +1,1 @@
+* wincows.el --- display and switch Emacs window configurations
