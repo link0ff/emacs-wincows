@@ -1,15 +1,16 @@
-;;; wincows.el --- display and switch Emacs window configurations
+;;; wincows.el --- display and switch Emacs window configurations  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2008  Juri Linkov <juri@jurta.org>
+;; Copyright (C) 2002-2018  Juri Linkov <juri@linkov.net>
 
-;; Author: Juri Linkov <juri@jurta.org>
+;; Author: Juri Linkov <juri@linkov.net>
 ;; Keywords: windows
-;; Version: 1.3
+;; URL: http://gitlab.com/link0ff/emacs-wincows
+;; Version: 2.0
 
-;; This package is free software; you can redistribute it and/or modify
+;; This package is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
-;; any later version.
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
 
 ;; This package is distributed in the hope that it will be useful,
 ;; but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,9 +18,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this package; see the file COPYING.  If not, write to
-;; the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-;; Boston, MA 02111-1307, USA.
+;; along with this package.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 
@@ -33,10 +32,37 @@
 
 ;;; Suggested keybindings
 
-;; (define-key global-map "\e\t" 'wincows)
-;; (define-key wincows-mode-map "\e\t" 'wincows-select)
-;; (define-key wincows-mode-map "\t" 'wincows-next-line)
+;; (define-key global-map       "\e\t"    'wincows)
+;; (define-key wincows-mode-map "\e\t"    'wincows-select)
+;; (define-key wincows-mode-map "\t"      'wincows-next-line)
 ;; (define-key wincows-mode-map [backtab] 'wincows-prev-line)
+;;
+;; Note that for convenience the same key M-Tab is used both for
+;; showing the list initially, and for selecting an item from the list
+;; (after navigating to it using the Tab key).
+;;
+;; Or if your window manager intercepts the M-Tab key, then you can use the
+;; M-` key to show the list, and the ` key for navigation, when ` is located
+;; near Tab on your keyboard.  Here is a sample configuration with different
+;; keys located near Tab.  Some of them might work for your keyboard:
+;;
+;; (when (require 'wincows nil t)
+;;   (define-key global-map [(meta  ?\xa7)] 'wincows)
+;;   (define-key global-map [(meta ?\x8a7)] 'wincows)
+;;   (define-key global-map [(meta     ?`)] 'wincows)
+;;   (define-key global-map [(super    ?`)] 'wincows)
+;;   (eval-after-load "wincows"
+;;     '(progn
+;;        (define-key wincows-mode-map [(meta  ?\xa7)] 'wincows-select)
+;;        (define-key wincows-mode-map [(meta ?\x8a7)] 'wincows-select)
+;;        (define-key wincows-mode-map [(meta     ?`)] 'wincows-select)
+;;        (define-key wincows-mode-map [(super    ?`)] 'wincows-select)
+;;        (define-key wincows-mode-map [( ?\xa7)] 'wincows-next-line)
+;;        (define-key wincows-mode-map [(?\x8a7)] 'wincows-next-line)
+;;        (define-key wincows-mode-map [(    ?`)] 'wincows-next-line)
+;;        (define-key wincows-mode-map [( ?\xbd)] 'wincows-prev-line)
+;;        (define-key wincows-mode-map [(?\x8bd)] 'wincows-prev-line)
+;;        (define-key wincows-mode-map [(    ?~)] 'wincows-prev-line))))
 
 ;;; Code:
 
@@ -58,19 +84,19 @@
 (defvar wincows-mode-map
   (let ((map (make-keymap)))
     (suppress-keymap map t)
-    (define-key map "q" 'quit-window)
+    (define-key map "q"    'quit-window)
     (define-key map "\C-m" 'wincows-select)
-    (define-key map "d" 'wincows-delete)
-    (define-key map "k" 'wincows-delete)
+    (define-key map "d"    'wincows-delete)
+    (define-key map "k"    'wincows-delete)
     (define-key map "\C-d" 'wincows-delete-backwards)
     (define-key map "\C-k" 'wincows-delete)
-    (define-key map "x" 'wincows-execute)
-    (define-key map " " 'wincows-next-line)
-    (define-key map "n" 'wincows-next-line)
-    (define-key map "p" 'wincows-prev-line)
+    (define-key map "x"    'wincows-execute)
+    (define-key map " "    'wincows-next-line)
+    (define-key map "n"    'wincows-next-line)
+    (define-key map "p"    'wincows-prev-line)
     (define-key map "\177" 'wincows-backup-unmark)
-    (define-key map "?" 'describe-mode)
-    (define-key map "u" 'wincows-unmark)
+    (define-key map "?"    'describe-mode)
+    (define-key map "u"    'wincows-unmark)
     (define-key map [mouse-2] 'wincows-mouse-select)
     (define-key map [follow-link] 'mouse-face)
     map)
@@ -87,7 +113,7 @@ Letters do not insert themselves; instead, they are commands.
 \\[wincows-select] -- select current line's window configuration.
 \\[wincows-delete] -- mark that window configuration to be deleted, and move down.
 \\[wincows-delete-backwards] -- mark that window configuration to be deleted, and move up.
-\\[wincows-execute] -- delete or save marked window configurations.
+\\[wincows-execute] -- delete marked window configurations.
 \\[wincows-unmark] -- remove all kinds of marks from current line.
   With prefix argument, also move up one line.
 \\[wincows-backup-unmark] -- back up a line and remove marks."
@@ -95,7 +121,7 @@ Letters do not insert themselves; instead, they are commands.
   (setq buffer-read-only t))
 
 (defun wincows-current (error-if-non-existent-p)
-  "Return window configuration described by this line of the menu."
+  "Return window configuration described by this line of the list."
   (let* ((where (save-excursion
 		  (beginning-of-line)
 		  (+ 2 (point) wincows-column)))
@@ -111,9 +137,9 @@ Letters do not insert themselves; instead, they are commands.
   "Display a list of window configurations with names of their buffers.
 The list is displayed in a buffer named `*Wincows*'.
 
-In this menu of window configurations so you can delete or select them.
+In this list of window configurations you can delete or select them.
 Type ? after invocation to get help on commands available.
-Type q to remove the window configuration menu from the display.
+Type q to remove the list of window configurations from the display.
 
 The first column shows `D' for for a window configuration you have
 marked for deletion."
@@ -170,8 +196,8 @@ Negative arg means delete backwards."
     (move-to-column wincows-column)))
 
 (defun wincows-delete-backwards (&optional arg)
-  "Mark window configuration on this line to be deleted by \\<wincows-mode-map>\\[wincows-execute] command
-and then move up one line.  Prefix arg means move that many lines."
+  "Mark window configuration on this line to be deleted by \\<wincows-mode-map>\\[wincows-execute] command.
+Then move up one line.  Prefix arg means move that many lines."
   (interactive "p")
   (wincows-delete (- (or arg 1))))
 
