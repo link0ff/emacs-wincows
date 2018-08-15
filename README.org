@@ -21,8 +21,8 @@ Running =wincows= displays a list of window configurations.
 Each line describes one window configuration and corresponding buffer names.
 Letters do not insert themselves; instead, they are commands:
 
-| key binding | description                                                                                          |
-|-------------+--------------------------------------------------------------                                        |
+| key binding | description                                                 |
+|-------------+-------------------------------------------------------------|
 | =RET=       | select current line's window configuration                  |
 | =d=         | mark that window configuration to be deleted, and move down |
 | =C-d=       | mark that window configuration to be deleted, and move up   |
