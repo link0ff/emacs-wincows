@@ -1,1 +1,69 @@
 * wincows.el --- display and switch Emacs window configurations
+
+The command =wincows= displays a list of previously created
+window configurations with names of their buffers separated by comma.
+You can switch to a window configuration selected from this list.
+
+In this list of window configurations so you can also delete them
+by marking a window configuration with =d= and deleting with =x=.
+The first column shows =D= for for a window configuration you have
+marked for deletion.
+Type =?= after invocation to get help on commands available.
+Type =q= to remove the list of window configurations from the display.
+
+To create a new window configuration, run =wincows= and start creating
+new windows without selecting an existing window configuration (you can
+leave the current list with =q= for clarity.)
+
+** Usage
+
+Running =wincows= displays a list of window configurations.
+Each line describes one window configuration and corresponding buffer names.
+Letters do not insert themselves; instead, they are commands:
+
+| key binding | description                                                                                          |
+|-------------+--------------------------------------------------------------                                        |
+| =RET=       | select current line's window configuration                  |
+| =d=         | mark that window configuration to be deleted, and move down |
+| =C-d=       | mark that window configuration to be deleted, and move up   |
+| =x=         | delete marked window configurations                         |
+| =u=         | remove all kinds of marks from current line                 |
+| =DEL=       | back up a line and remove marks                             |
+
+** Recommended keybindings
+
+#+BEGIN_SRC elisp
+(define-key global-map       "\e\t"    'wincows)
+(define-key wincows-mode-map "\e\t"    'wincows-select)
+(define-key wincows-mode-map "\t"      'wincows-next-line)
+(define-key wincows-mode-map [backtab] 'wincows-prev-line)
+#+END_SRC
+
+Note that for convenience the same key =M-Tab= is used both for
+showing the list initially, and for selecting an item from the list
+(after navigating to it using the =Tab= key).
+
+Or if your window manager intercepts the =M-Tab= key, then you can use the
+=M-`= key to show the list, and the =`= key for navigation, when =`= is located
+near =Tab= on your keyboard.  Here is a sample configuration with different
+keys located near =Tab=.  Some of them might work for your keyboard:
+
+#+BEGIN_SRC elisp
+(when (require 'wincows nil t)
+  (define-key global-map [(meta  ?\xa7)] 'wincows)
+  (define-key global-map [(meta ?\x8a7)] 'wincows)
+  (define-key global-map [(meta     ?`)] 'wincows)
+  (define-key global-map [(super    ?`)] 'wincows)
+  (eval-after-load "wincows"
+    '(progn
+       (define-key wincows-mode-map [(meta  ?\xa7)] 'wincows-select)
+       (define-key wincows-mode-map [(meta ?\x8a7)] 'wincows-select)
+       (define-key wincows-mode-map [(meta     ?`)] 'wincows-select)
+       (define-key wincows-mode-map [(super    ?`)] 'wincows-select)
+       (define-key wincows-mode-map [( ?\xa7)] 'wincows-next-line)
+       (define-key wincows-mode-map [(?\x8a7)] 'wincows-next-line)
+       (define-key wincows-mode-map [(    ?`)] 'wincows-next-line)
+       (define-key wincows-mode-map [( ?\xbd)] 'wincows-prev-line)
+       (define-key wincows-mode-map [(?\x8bd)] 'wincows-prev-line)
+       (define-key wincows-mode-map [(    ?~)] 'wincows-prev-line))))
+#+END_SRC
