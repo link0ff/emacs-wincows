@@ -5,7 +5,7 @@
 ;; Author: Juri Linkov <juri@linkov.net>
 ;; Keywords: windows
 ;; URL: http://gitlab.com/link0ff/emacs-wincows
-;; Version: 2.0
+;; Version: 3.0
 
 ;; This package is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -63,6 +63,15 @@
 ;;        (define-key wincows-mode-map [( ?\xbd)] 'wincows-prev-line)
 ;;        (define-key wincows-mode-map [(?\x8bd)] 'wincows-prev-line)
 ;;        (define-key wincows-mode-map [(    ?~)] 'wincows-prev-line))))
+
+;;; Desktop persistence
+
+;; You can save your list of window configurations to persist between sessions
+;; by adding to your configuration:
+;;
+;; (when (and (boundp 'desktop-globals-to-save)
+;;              (not (memq 'wincows-list desktop-globals-to-save)))
+;;     (push 'wincows-list desktop-globals-to-save))
 
 ;;; Code:
 
@@ -126,7 +135,7 @@ Letters do not insert themselves; instead, they are commands.
 		  (beginning-of-line)
 		  (+ 2 (point) wincows-column)))
 	 (wincow (and (not (eobp)) (get-text-property where 'wincow))))
-    (or (and wincow (window-configuration-p (nth 0 wincow)) wincow)
+    (or (and wincow (listp (nth 0 wincow)) wincow)
         (if error-if-non-existent-p
             (error "No window configuration on this line")
           nil))))
@@ -225,16 +234,18 @@ This command deletes and replaces all the previously existing windows
 in the selected frame."
   (interactive)
   (let* ((wincow (wincows-current t))
-         (bl (delq nil (mapcar (lambda (b) (and (buffer-live-p b) b))
+         (bl (delq nil (mapcar (lambda (b) (setq b (get-buffer b))
+                                 (and (buffer-live-p b) b))
                                (nth 3 wincow))))
-         (bbl (delq nil (mapcar (lambda (b) (and (buffer-live-p b) b))
+         (bbl (delq nil (mapcar (lambda (b) (setq b (get-buffer b))
+                                  (and (buffer-live-p b) b))
                                 (nth 4 wincow)))))
     ;; Delete the selected window configuration
     (setq wincows-list (delete wincow wincows-list))
     (kill-buffer (current-buffer))
     (modify-frame-parameters (selected-frame) (list (cons 'buffer-list bl)))
     (modify-frame-parameters (selected-frame) (list (cons 'buried-buffer-list bbl)))
-    (set-window-configuration (nth 0 wincow))
+    (window-state-put (nth 0 wincow) (frame-root-window (selected-frame)) 'safe)
     ;; set-window-configuration does not restore the value
     ;; of point in the current buffer, so restore that separately.
     (when (and (markerp (nth 1 wincow))
@@ -296,7 +307,7 @@ For more information, see the function `wincows'."
   "Add current Emacs window configuration to the list."
   (interactive)
   (let ((current (list
-                  (current-window-configuration)
+                  (window-state-get (frame-root-window (selected-frame)) 'writable)
                   ;; set-window-configuration does not restore the value
                   ;; of point in the current buffer, so record that separately.
                   (point-marker)
@@ -305,11 +316,13 @@ For more information, see the function `wincows'."
                    (window-list)
                    ", ")
                   (delq nil (mapcar
-                             (lambda (b) (and (buffer-live-p b) b))
+                             (lambda (b) (and (buffer-live-p b)
+                                              (buffer-name b)))
                              (frame-parameter (selected-frame)
                                               'buffer-list)))
                   (delq nil (mapcar
-                             (lambda (b) (and (buffer-live-p b) b))
+                             (lambda (b) (and (buffer-live-p b)
+                                              (buffer-name b)))
                              (frame-parameter (selected-frame)
                                               'buried-buffer-list)))
                   ;; Add a unique value, so `delete' in `wincows-select'

@@ -15,12 +15,22 @@ To create a new window configuration, run =wincows= and start creating
 new windows without selecting an existing window configuration (you can
 leave the current list with =q= for clarity.)
 
+** Installation
+
+Clone this repository, add its path to =load-path= with e.g.:
+
+#+BEGIN_SRC emacs-lisp
+(add-to-list 'load-path "~/.emacs.d/lisp/emacs-wincows")
+(require 'wincows)
+#+END_SRC
+
 ** Usage
 
 Running =wincows= displays a list of window configurations.
 Each line describes one window configuration and corresponding buffer names.
 Letters do not insert themselves; instead, they are commands:
 
+|-------------+-------------------------------------------------------------|
 | key binding | description                                                 |
 |-------------+-------------------------------------------------------------|
 | =RET=       | select current line's window configuration                  |
@@ -29,6 +39,7 @@ Letters do not insert themselves; instead, they are commands:
 | =x=         | delete marked window configurations                         |
 | =u=         | remove all kinds of marks from current line                 |
 | =DEL=       | back up a line and remove marks                             |
+|-------------+-------------------------------------------------------------|
 
 ** Recommended keybindings
 
@@ -66,4 +77,15 @@ keys located near =Tab=.  Some of them might work for your keyboard:
        (define-key wincows-mode-map [( ?\xbd)] 'wincows-prev-line)
        (define-key wincows-mode-map [(?\x8bd)] 'wincows-prev-line)
        (define-key wincows-mode-map [(    ?~)] 'wincows-prev-line))))
+#+END_SRC
+
+** Desktop persistence
+
+You can save your list of window configurations to persist between sessions
+by adding to your configuration:
+
+#+BEGIN_SRC elisp
+(when (and (boundp 'desktop-globals-to-save)
+             (not (memq 'wincows-list desktop-globals-to-save)))
+    (push 'wincows-list desktop-globals-to-save))
 #+END_SRC
