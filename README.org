@@ -86,6 +86,6 @@ by adding to your configuration:
 
 #+BEGIN_SRC elisp
 (when (and (boundp 'desktop-globals-to-save)
-             (not (memq 'wincows-list desktop-globals-to-save)))
-    (push 'wincows-list desktop-globals-to-save))
+             (not (memq 'wincows-states desktop-globals-to-save)))
+    (push 'wincows-states desktop-globals-to-save))
 #+END_SRC
