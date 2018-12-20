@@ -4,8 +4,8 @@
 
 ;; Author: Juri Linkov <juri@linkov.net>
 ;; Keywords: windows
-;; URL: http://gitlab.com/link0ff/emacs-wincows
-;; Version: 4.0
+;; URL: https://gitlab.com/link0ff/emacs-wincows
+;; Version: 4.1
 
 ;; This package is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -162,16 +162,23 @@ Type q to remove the list of window configurations from the display.
 The first column shows `D' for for a window configuration you have
 marked for deletion."
   (interactive)
-  (switch-to-buffer (wincows-noselect))
+  (wincows-add-current)
+  (delete-other-windows)
+  (let ((switch-to-buffer-preserve-window-point nil))
+    (switch-to-buffer (wincows-noselect)))
   (message "Commands: d, x; RET; q to quit; ? for help."))
 
 (defun wincows-next-line (&optional arg)
   (interactive)
-  (next-line arg))
+  (forward-line arg)
+  (beginning-of-line)
+  (move-to-column wincows-column))
 
 (defun wincows-prev-line (&optional arg)
   (interactive)
-  (previous-line arg))
+  (forward-line (- arg))
+  (beginning-of-line)
+  (move-to-column wincows-column))
 
 (defun wincows-unmark (&optional backup)
   "Cancel all requested operations on window configuration on this line and move down.
@@ -289,9 +296,6 @@ in the selected frame."
 The list is displayed in a buffer named `*Wincows*'.
 
 For more information, see the function `wincows'."
-  (wincows-add-current)
-  ;; WORKAROUND FOR A BUG IN NEXT-LINE
-  (pop-to-buffer (get-buffer-create "*Wincows*")) (delete-other-windows)
   (with-current-buffer (get-buffer-create "*Wincows*")
     (setq buffer-read-only nil)
     (erase-buffer)
@@ -315,7 +319,6 @@ For more information, see the function `wincows'."
       (wincows-next-line))
     (move-to-column wincows-column)
     (set-buffer-modified-p nil)
-    (delete-other-windows)
     (current-buffer)))
 
 (defun wincows-add-current ()
