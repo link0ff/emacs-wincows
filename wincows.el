@@ -5,7 +5,7 @@
 ;; Author: Juri Linkov <juri@linkov.net>
 ;; Keywords: windows
 ;; URL: https://gitlab.com/link0ff/emacs-wincows
-;; Version: 4.1
+;; Version: 4.2
 
 ;; This package is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -163,7 +163,13 @@ The first column shows `D' for for a window configuration you have
 marked for deletion."
   (interactive)
   (wincows-add-current)
-  (delete-other-windows)
+  ;; Handle the case when it's called in the active minibuffer.
+  (delete-other-windows (or (minibuffer-selected-window) (selected-window)))
+  ;; Create a new window to replace the existing one, to not break the
+  ;; window parameters (e.g. prev/next buffers) of the window just saved
+  ;; to the window configuration.  So when a saved window is restored,
+  ;; its parameters left intact.
+  (split-window) (delete-window)
   (let ((switch-to-buffer-preserve-window-point nil))
     (switch-to-buffer (wincows-noselect)))
   (message "Commands: d, x; RET; q to quit; ? for help."))
