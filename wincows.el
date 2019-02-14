@@ -83,8 +83,8 @@
 
 ;;; Internal Variables
 
-(defvar wincows-list nil
-  "A list of window configurations.")
+;; (defvar wincows-list nil
+;;   "A list of window configurations.")
 
 (defvar wincows-states nil
   "A list of writable window configurations.
@@ -96,6 +96,7 @@ because currently direct conversion from window configurations to
 window states is not implemented.  See more at https://debbugs.gnu.org/32850")
 
 (defvar wincows-column 3)
+(make-variable-buffer-local 'wincows-column)
 
 ;;; Key Bindings
 
@@ -238,9 +239,11 @@ Then move up one line.  Prefix arg means move that many lines."
 
 (defun wincows-delete-from-list (wincow)
   "Delete the window configuration from both lists."
-  (let ((i (- (length wincows-list)
-              (length (memq wincow wincows-list)))))
-    (setq wincows-list (delete wincow wincows-list))
+  (let* ((wincows-list (frame-parameter nil 'wincows-list))
+         (i (- (length wincows-list)
+               (length (memq wincow wincows-list)))))
+    (modify-frame-parameters
+     nil (list (cons 'wincows-list (delete wincow wincows-list))))
     ;; Delete by the same index from duplicate list of writable states
     (setq wincows-states (delete (nth i wincows-states) wincows-states))))
 
@@ -275,8 +278,8 @@ in the selected frame."
     ;; Delete the selected window configuration
     (wincows-delete-from-list wincow)
     (kill-buffer (current-buffer))
-    (modify-frame-parameters (selected-frame) (list (cons 'buffer-list bl)))
-    (modify-frame-parameters (selected-frame) (list (cons 'buried-buffer-list bbl)))
+    (modify-frame-parameters nil (list (cons 'buffer-list bl)))
+    (modify-frame-parameters nil (list (cons 'buried-buffer-list bbl)))
     (set-window-configuration (nth 0 wincow))
     ;; set-window-configuration does not restore the value
     ;; of point in the current buffer, so restore that separately.
@@ -306,14 +309,15 @@ in the selected frame."
 The list is displayed in a buffer named `*Wincows*'.
 
 For more information, see the function `wincows'."
-  (with-current-buffer (get-buffer-create "*Wincows*")
-    (setq buffer-read-only nil)
+  (with-current-buffer (get-buffer-create (format "*Wincows*<%s>" (frame-parameter nil 'frameset--id)))
     (erase-buffer)
+    (wincows-mode)
+    (setq buffer-read-only nil)
     ;; Vertical alignment to the center of the frame
-    (insert-char ?\n (/ (- (frame-height) (length wincows-list) 1) 2))
+    (insert-char ?\n (/ (- (frame-height) (length (frame-parameter nil 'wincows-list)) 1) 2))
     ;; Horizontal alignment to the center of the frame
     (setq wincows-column (- (/ (frame-width) 2) 15))
-    (dolist (wincow wincows-list)
+    (dolist (wincow (frame-parameter nil 'wincows-list))
       (insert (propertize
                (format "%s %s\n"
                        (make-string wincows-column ?\040)
@@ -322,10 +326,9 @@ For more information, see the function `wincows'."
                         'mouse-face 'highlight
                         'help-echo "mouse-2: select this window configuration"))
                'wincow wincow)))
-    (wincows-mode)
     (goto-char (point-min))
     (goto-char (or (next-single-property-change (point) 'wincow) (point-min)))
-    (when (> (length wincows-list) 1)
+    (when (> (length (frame-parameter nil 'wincows-list)) 1)
       (wincows-next-line))
     (move-to-column wincows-column)
     (set-buffer-modified-p nil)
@@ -345,12 +348,10 @@ For more information, see the function `wincows'."
                 ", ")
                (delq nil (mapcar
                           (lambda (b) (and (buffer-live-p b) b))
-                          (frame-parameter (selected-frame)
-                                           'buffer-list)))
+                          (frame-parameter nil 'buffer-list)))
                (delq nil (mapcar
                           (lambda (b) (and (buffer-live-p b) b))
-                          (frame-parameter (selected-frame)
-                                           'buried-buffer-list)))
+                          (frame-parameter nil 'buried-buffer-list)))
                ;; Add a unique value, so `delete' in `wincows-select'
                ;; won't delete identical records.
                (random)))
@@ -361,26 +362,24 @@ For more information, see the function `wincows'."
                (delq nil (mapcar
                           (lambda (b) (and (buffer-live-p b)
                                            (buffer-name b)))
-                          (frame-parameter (selected-frame)
-                                           'buffer-list)))
+                          (frame-parameter nil 'buffer-list)))
                (delq nil (mapcar
                           (lambda (b) (and (buffer-live-p b)
                                            (buffer-name b)))
-                          (frame-parameter (selected-frame)
-                                           'buried-buffer-list))))))
-    (setq wincows-list (cons current wincows-list))
+                          (frame-parameter nil 'buried-buffer-list))))))
+    (modify-frame-parameters
+     nil (list (cons 'wincows-list (cons current (frame-parameter nil 'wincows-list)))))
     (setq wincows-states (cons wincows-state wincows-states))))
 
 (defun wincows-read ()
   "Convert window states from the desktop file to window configurations."
   (when wincows-states
     ;; First, preserve the current window configuration
-    (let ((current-window-configuration (current-window-configuration))
-          ;; Let-bind there hooks to nil to prevent them from running
-          (window-configuration-change-hook nil)
-          (window-size-change-functions nil))
-      ;; Restore the saved list from the desktop file
-      (setq wincows-list
+    (let* ((current-window-configuration (current-window-configuration))
+           ;; Let-bind there hooks to nil to prevent them from running
+           (window-configuration-change-hook nil)
+           (window-size-change-functions nil)
+           (wincows-list
             (mapcar (lambda (wincows-state)
                       (save-window-excursion
                         (window-state-put (nth 0 wincows-state) nil 'safe)
@@ -397,7 +396,9 @@ For more information, see the function `wincows'."
                                                   (and (buffer-live-p b) b))
                                                 (nth 4 wincows-state)))
                               (random))))
-                    wincows-states))
+                    wincows-states)))
+      ;; Restore the saved list from the desktop file
+      (modify-frame-parameters nil (list (cons 'wincows-list wincows-list)))
       ;; Restore the original window configuration
       (set-window-configuration current-window-configuration))))
 
