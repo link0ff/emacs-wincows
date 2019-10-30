@@ -1,3 +1,11 @@
+
+* Obsolescence message
+
+The version 5.0 is well-tested and stable.  However, no more development
+is planned because now the same functionality is available in GNU Emacs 27
+by =tab-bar-list= that can be used for the same purpose (switching the
+named persistent window configurations) even without using the tab-bar.
+
 * wincows.el --- display and switch Emacs window configurations
 
 The command =wincows= displays a list of previously created
@@ -50,14 +58,14 @@ Letters do not insert themselves; instead, they are commands:
 (define-key wincows-mode-map [backtab] 'wincows-prev-line)
 #+END_SRC
 
-Note that for convenience the same key =M-Tab= is used both for
+Note that for convenience the same key =M-TAB= is used both for
 showing the list initially, and for selecting an item from the list
-(after navigating to it using the =Tab= key).
+(after navigating to it using the =TAB= key).
 
-Or if your window manager intercepts the =M-Tab= key, then you can use the
+Or if your window manager intercepts the =M-TAB= key, then you can use the
 =M-`= key to show the list, and the =`= key for navigation, when =`= is located
-near =Tab= on your keyboard.  Here is a sample configuration with different
-keys located near =Tab=.  Some of them might work for your keyboard:
+near =TAB= on your keyboard.  Here is a sample configuration with different
+keys located near =TAB=.  Some of them might work for your keyboard:
 
 #+BEGIN_SRC elisp
 (when (require 'wincows nil t)
@@ -81,11 +89,4 @@ keys located near =Tab=.  Some of them might work for your keyboard:
 
 ** Desktop persistence
 
-You can save your list of window configurations to persist between sessions
-by adding to your configuration:
-
-#+BEGIN_SRC elisp
-(when (and (boundp 'desktop-globals-to-save)
-             (not (memq 'wincows-states desktop-globals-to-save)))
-    (push 'wincows-states desktop-globals-to-save))
-#+END_SRC
+Window configurations are saved and restored automatically in =desktop-save-mode=.

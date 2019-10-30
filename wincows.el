@@ -1,11 +1,11 @@
-;;; wincows.el --- display and switch Emacs window configurations  -*- lexical-binding: t -*-
+;;; wincows.el --- switch between named persistent window configurations  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2018  Juri Linkov <juri@linkov.net>
+;; Copyright (C) 2002-2019  Juri Linkov <juri@linkov.net>
 
 ;; Author: Juri Linkov <juri@linkov.net>
-;; Keywords: windows
+;; Keywords: windows frames
 ;; URL: https://gitlab.com/link0ff/emacs-wincows
-;; Version: 4.3
+;; Version: 5.0
 
 ;; This package is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -30,6 +30,13 @@
 ;; new windows without selecting an existing window configuration (you can
 ;; leave the current list with `q' for clarity.)
 
+;;; Obsolescence message
+
+;; The version 5.0 is well-tested and stable.  However, no more development
+;; is planned because now the same functionality is available in Emacs 27
+;; by `tab-bar-list' that can be used for the same purpose (switching the
+;; named persistent window configurations) even without using the tab-bar.
+
 ;;; Suggested keybindings
 
 ;; (define-key global-map       "\e\t"    'wincows)
@@ -37,14 +44,14 @@
 ;; (define-key wincows-mode-map "\t"      'wincows-next-line)
 ;; (define-key wincows-mode-map [backtab] 'wincows-prev-line)
 ;;
-;; Note that for convenience the same key M-Tab is used both for
+;; Note that for convenience the same key `M-TAB' is used both for
 ;; showing the list initially, and for selecting an item from the list
-;; (after navigating to it using the Tab key).
+;; (after navigating to it using the TAB key).
 ;;
-;; Or if your window manager intercepts the M-Tab key, then you can use the
+;; Or if your window manager intercepts the `M-TAB' key, then you can use the
 ;; M-` key to show the list, and the ` key for navigation, when ` is located
-;; near Tab on your keyboard.  Here is a sample configuration with different
-;; keys located near Tab.  Some of them might work for your keyboard:
+;; near TAB on your keyboard.  Here is a sample configuration with different
+;; keys located near TAB.  Some of them might work for your keyboard:
 ;;
 ;; (when (require 'wincows nil t)
 ;;   (define-key global-map [(meta  ?\xa7)] 'wincows)
@@ -66,14 +73,26 @@
 
 ;;; Desktop persistence
 
-;; You can save your list of window configurations to persist between sessions
-;; by adding to your configuration:
+;; Window configurations are saved and restored automatically in `desktop-save-mode'.
+
+;;; Implementation
+
+;; Window configurations are stored in the frame parameter `wincows'.
 ;;
-;; (when (and (boundp 'desktop-globals-to-save)
-;;              (not (memq 'wincows-states desktop-globals-to-save)))
-;;     (push 'wincows-states desktop-globals-to-save))
+;; Each element of the list has the following structure:
+;;
+;; ((name . "window configuration name")
+;;  (ws . (... writable window state ...))
+;;  (wc . #<window-configuration>)
+;;  (point-marker . #<marker>)
+;;  (bl . (... buffer list ..))
+;;  (bbl . (... buffer list ..))
+;;  ... other parameters)
+;;
 
 ;;; Code:
+
+(require 'frameset)
 
 ;;; Customizable User Options
 
@@ -83,19 +102,8 @@
 
 ;;; Internal Variables
 
-(defvar wincows-list nil
-  "A list of window configurations.")
-
-(defvar wincows-states nil
-  "A list of writable window configurations.
-This is a duplicate of `wincows-list' but intended for persistence,
-so it contains writable syntax.
-Currently it is updated at the same time when `wincows-list' is updated.
-It can't be populated from `wincows-list' at the time of desktop saving
-because currently direct conversion from window configurations to
-window states is not implemented.  See more at https://debbugs.gnu.org/32850")
-
 (defvar wincows-column 3)
+(make-variable-buffer-local 'wincows-column)
 
 ;;; Key Bindings
 
@@ -141,10 +149,10 @@ Letters do not insert themselves; instead, they are commands.
 (defun wincows-current (error-if-non-existent-p)
   "Return window configuration described by this line of the list."
   (let* ((where (save-excursion
-		  (beginning-of-line)
-		  (+ 2 (point) wincows-column)))
-	 (wincow (and (not (eobp)) (get-text-property where 'wincow))))
-    (or (and wincow (window-configuration-p (nth 0 wincow)) wincow)
+                  (beginning-of-line)
+                  (+ 2 (point) wincows-column)))
+         (wincow (and (not (eobp)) (get-text-property where 'wincow))))
+    (or wincow
         (if error-if-non-existent-p
             (user-error "No window configuration on this line")
           nil))))
@@ -159,7 +167,7 @@ In this list of window configurations you can delete or select them.
 Type ? after invocation to get help on commands available.
 Type q to remove the list of window configurations from the display.
 
-The first column shows `D' for for a window configuration you have
+The first column shows `D' for a window configuration you have
 marked for deletion."
   (interactive)
   (let ((dir default-directory)
@@ -238,11 +246,9 @@ Then move up one line.  Prefix arg means move that many lines."
 
 (defun wincows-delete-from-list (wincow)
   "Delete the window configuration from both lists."
-  (let ((i (- (length wincows-list)
-              (length (memq wincow wincows-list)))))
-    (setq wincows-list (delete wincow wincows-list))
-    ;; Delete by the same index from duplicate list of writable states
-    (setq wincows-states (delete (nth i wincows-states) wincows-states))))
+  (let* ((wincows (frame-parameter nil 'wincows)))
+    (modify-frame-parameters
+     nil (list (cons 'wincows (delete wincow wincows))))))
 
 (defun wincows-execute ()
   "Delete window configurations marked with \\<wincows-mode-map>\\[wincows-delete] commands."
@@ -253,9 +259,9 @@ Then move up one line.  Prefix arg means move that many lines."
       (while (re-search-forward
               (format "^%sD" (make-string wincows-column ?\040))
               nil t)
-	(forward-char -1)
-	(let ((wincow (wincows-current nil)))
-	  (when wincow
+        (forward-char -1)
+        (let ((wincow (wincows-current nil)))
+          (when wincow
             (wincows-delete-from-list wincow)
             (beginning-of-line)
             (delete-region (point) (progn (forward-line 1) (point))))))))
@@ -268,29 +274,34 @@ This command deletes and replaces all the previously existing windows
 in the selected frame."
   (interactive)
   (let* ((wincow (wincows-current t))
-         (bl (delq nil (mapcar (lambda (b) (and (buffer-live-p b) b))
-                               (nth 3 wincow))))
-         (bbl (delq nil (mapcar (lambda (b) (and (buffer-live-p b) b))
-                                (nth 4 wincow)))))
+         (bl (delq nil (mapcar (lambda (b) (setq b (get-buffer b))
+                                 (and (buffer-live-p b) b))
+                               (cdr (assq 'bl wincow)))))
+         (bbl (delq nil (mapcar (lambda (b) (setq b (get-buffer b))
+                                  (and (buffer-live-p b) b))
+                                (cdr (assq 'bbl wincow))))))
     ;; Delete the selected window configuration
     (wincows-delete-from-list wincow)
     (kill-buffer (current-buffer))
-    (modify-frame-parameters (selected-frame) (list (cons 'buffer-list bl)))
-    (modify-frame-parameters (selected-frame) (list (cons 'buried-buffer-list bbl)))
-    (set-window-configuration (nth 0 wincow))
+    (modify-frame-parameters nil (list (cons 'buffer-list bl)))
+    (modify-frame-parameters nil (list (cons 'buried-buffer-list bbl)))
+    (if (window-configuration-p (cdr (assq 'wc wincow)))
+        (set-window-configuration (cdr (assq 'wc wincow)))
+      (window-state-put (cdr (assq 'ws wincow)) (frame-root-window (selected-frame)) 'safe))
     ;; set-window-configuration does not restore the value
     ;; of point in the current buffer, so restore that separately.
-    (when (and (markerp (nth 1 wincow))
-               (marker-buffer (nth 1 wincow))
-               ;; After dired-revert, marker relocates to 1.
-               ;; window-configuration restores point to global point
-               ;; in this dired buffer, not to its window point,
-               ;; but this is slightly better than 1.
-               ;; [2011-08-07] Perhaps dired is already fixed,
-               ;; so the next line is commented out:
-               ;; (not (eq 1 (marker-position (nth 1 wincow))))
-               )
-      (goto-char (nth 1 wincow)))))
+    (let ((point-marker (cdr (assq 'point-marker wincow))))
+      (when (and (markerp point-marker)
+                 (marker-buffer point-marker)
+                 ;; After dired-revert, marker relocates to 1.
+                 ;; window-configuration restores point to global point
+                 ;; in this dired buffer, not to its window point,
+                 ;; but this is slightly better than 1.
+                 ;; [2011-08-07] Perhaps dired is already fixed,
+                 ;; so the next line is commented out:
+                 ;; (not (eq 1 (marker-position point-marker)))
+                 )
+        (goto-char point-marker)))))
 
 (defun wincows-mouse-select (event)
   "Select the window configuration whose line you click on."
@@ -306,26 +317,27 @@ in the selected frame."
 The list is displayed in a buffer named `*Wincows*'.
 
 For more information, see the function `wincows'."
-  (with-current-buffer (get-buffer-create "*Wincows*")
-    (setq buffer-read-only nil)
+  (frameset--set-id nil)
+  (with-current-buffer (get-buffer-create (format " *Wincows*<%s>" (frameset-frame-id nil)))
     (erase-buffer)
+    (wincows-mode)
+    (setq buffer-read-only nil)
     ;; Vertical alignment to the center of the frame
-    (insert-char ?\n (/ (- (frame-height) (length wincows-list) 1) 2))
+    (insert-char ?\n (/ (- (frame-height) (length (frame-parameter nil 'wincows)) 1) 2))
     ;; Horizontal alignment to the center of the frame
     (setq wincows-column (- (/ (frame-width) 2) 15))
-    (dolist (wincow wincows-list)
+    (dolist (wincow (frame-parameter nil 'wincows))
       (insert (propertize
                (format "%s %s\n"
                        (make-string wincows-column ?\040)
                        (propertize
-                        (nth 2 wincow)
+                        (cdr (assq 'name wincow))
                         'mouse-face 'highlight
                         'help-echo "mouse-2: select this window configuration"))
                'wincow wincow)))
-    (wincows-mode)
     (goto-char (point-min))
     (goto-char (or (next-single-property-change (point) 'wincow) (point-min)))
-    (when (> (length wincows-list) 1)
+    (when (> (length (frame-parameter nil 'wincows)) 1)
       (wincows-next-line))
     (move-to-column wincows-column)
     (set-buffer-modified-p nil)
@@ -335,77 +347,28 @@ For more information, see the function `wincows'."
   "Add current Emacs window configuration to the list."
   (interactive)
   (let ((current
-         (list (current-window-configuration)
-               ;; set-window-configuration does not restore the value
-               ;; of point in the current buffer, so record that separately.
-               (point-marker)
-               (mapconcat
-                (lambda (w) (buffer-name (window-buffer w)))
-                (window-list)
-                ", ")
-               (delq nil (mapcar
-                          (lambda (b) (and (buffer-live-p b) b))
-                          (frame-parameter (selected-frame)
-                                           'buffer-list)))
-               (delq nil (mapcar
-                          (lambda (b) (and (buffer-live-p b) b))
-                          (frame-parameter (selected-frame)
-                                           'buried-buffer-list)))
-               ;; Add a unique value, so `delete' in `wincows-select'
-               ;; won't delete identical records.
-               (random)))
-        (wincows-state
-         (list (window-state-get nil t)
-               nil
-               nil
-               (delq nil (mapcar
-                          (lambda (b) (and (buffer-live-p b)
-                                           (buffer-name b)))
-                          (frame-parameter (selected-frame)
-                                           'buffer-list)))
-               (delq nil (mapcar
-                          (lambda (b) (and (buffer-live-p b)
-                                           (buffer-name b)))
-                          (frame-parameter (selected-frame)
-                                           'buried-buffer-list))))))
-    (setq wincows-list (cons current wincows-list))
-    (setq wincows-states (cons wincows-state wincows-states))))
-
-(defun wincows-read ()
-  "Convert window states from the desktop file to window configurations."
-  (when wincows-states
-    ;; First, preserve the current window configuration
-    (let ((current-window-configuration (current-window-configuration))
-          ;; Let-bind there hooks to nil to prevent them from running
-          (window-configuration-change-hook nil)
-          (window-size-change-functions nil))
-      ;; Restore the saved list from the desktop file
-      (setq wincows-list
-            (mapcar (lambda (wincows-state)
-                      (save-window-excursion
-                        (window-state-put (nth 0 wincows-state) nil 'safe)
-                        (list (current-window-configuration)
-                              (point-marker)
-                              (mapconcat
-                               (lambda (w) (buffer-name (window-buffer w)))
-                               (window-list)
-                               ", ")
-                              (delq nil (mapcar (lambda (b) (setq b (get-buffer b))
-                                                  (and (buffer-live-p b) b))
-                                                (nth 3 wincows-state)))
-                              (delq nil (mapcar (lambda (b) (setq b (get-buffer b))
-                                                  (and (buffer-live-p b) b))
-                                                (nth 4 wincows-state)))
-                              (random))))
-                    wincows-states))
-      ;; Restore the original window configuration
-      (set-window-configuration current-window-configuration))))
-
-(when desktop-save-mode
-  (when (and (boundp 'desktop-globals-to-save)
-             (not (memq 'wincows-states desktop-globals-to-save)))
-    (push 'wincows-states desktop-globals-to-save))
-  (add-hook 'desktop-after-read-hook 'wincows-read))
+         `((name . ,(mapconcat
+                     (lambda (w) (buffer-name (window-buffer w)))
+                     (window-list)
+                     ", "))
+           (id . ,(random))
+           (ws . ,(window-state-get (frame-root-window (selected-frame)) 'writable))
+           (wc . ,(current-window-configuration))
+           ;; set-window-configuration does not restore the value
+           ;; of point in the current buffer, so record that separately.
+           ;; TODO: save dired-filename in each window
+           (point-marker . ,(point-marker))
+           ;; TODO: duplicate buffer-lists with buffer objects?
+           (bl . ,(delq nil (mapcar
+                             (lambda (b) (and (buffer-live-p b)
+                                              (buffer-name b)))
+                             (frame-parameter nil 'buffer-list))))
+           (bbl . ,(delq nil (mapcar
+                              (lambda (b) (and (buffer-live-p b)
+                                               (buffer-name b)))
+                              (frame-parameter nil 'buried-buffer-list)))))))
+    (modify-frame-parameters
+     nil (list (cons 'wincows (cons current (frame-parameter nil 'wincows)))))))
 
 (provide 'wincows)
 
