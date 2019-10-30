@@ -1,11 +1,11 @@
-;;; wincows.el --- display and switch Emacs window configurations  -*- lexical-binding: t -*-
+;;; wincows.el --- switch between named persistent window configurations  -*- lexical-binding: t -*-
 
-;; Copyright (C) 2002-2018  Juri Linkov <juri@linkov.net>
+;; Copyright (C) 2002-2019  Juri Linkov <juri@linkov.net>
 
 ;; Author: Juri Linkov <juri@linkov.net>
-;; Keywords: windows
+;; Keywords: windows frames
 ;; URL: https://gitlab.com/link0ff/emacs-wincows
-;; Version: 4.3
+;; Version: 5.0
 
 ;; This package is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -30,6 +30,13 @@
 ;; new windows without selecting an existing window configuration (you can
 ;; leave the current list with `q' for clarity.)
 
+;;; Obsolescence message
+
+;; The version 5.0 is well-tested and stable.  However, no more development
+;; is planned because now the same functionality is available in Emacs 27
+;; by `tab-bar-list' that can be used for the same purpose (switching the
+;; named persistent window configurations) even without using the tab-bar.
+
 ;;; Suggested keybindings
 
 ;; (define-key global-map       "\e\t"    'wincows)
@@ -37,14 +44,14 @@
 ;; (define-key wincows-mode-map "\t"      'wincows-next-line)
 ;; (define-key wincows-mode-map [backtab] 'wincows-prev-line)
 ;;
-;; Note that for convenience the same key M-Tab is used both for
+;; Note that for convenience the same key `M-TAB' is used both for
 ;; showing the list initially, and for selecting an item from the list
-;; (after navigating to it using the Tab key).
+;; (after navigating to it using the TAB key).
 ;;
-;; Or if your window manager intercepts the M-Tab key, then you can use the
+;; Or if your window manager intercepts the `M-TAB' key, then you can use the
 ;; M-` key to show the list, and the ` key for navigation, when ` is located
-;; near Tab on your keyboard.  Here is a sample configuration with different
-;; keys located near Tab.  Some of them might work for your keyboard:
+;; near TAB on your keyboard.  Here is a sample configuration with different
+;; keys located near TAB.  Some of them might work for your keyboard:
 ;;
 ;; (when (require 'wincows nil t)
 ;;   (define-key global-map [(meta  ?\xa7)] 'wincows)
@@ -142,9 +149,9 @@ Letters do not insert themselves; instead, they are commands.
 (defun wincows-current (error-if-non-existent-p)
   "Return window configuration described by this line of the list."
   (let* ((where (save-excursion
-		  (beginning-of-line)
-		  (+ 2 (point) wincows-column)))
-	 (wincow (and (not (eobp)) (get-text-property where 'wincow))))
+                  (beginning-of-line)
+                  (+ 2 (point) wincows-column)))
+         (wincow (and (not (eobp)) (get-text-property where 'wincow))))
     (or wincow
         (if error-if-non-existent-p
             (user-error "No window configuration on this line")
@@ -160,7 +167,7 @@ In this list of window configurations you can delete or select them.
 Type ? after invocation to get help on commands available.
 Type q to remove the list of window configurations from the display.
 
-The first column shows `D' for for a window configuration you have
+The first column shows `D' for a window configuration you have
 marked for deletion."
   (interactive)
   (let ((dir default-directory)
@@ -239,9 +246,7 @@ Then move up one line.  Prefix arg means move that many lines."
 
 (defun wincows-delete-from-list (wincow)
   "Delete the window configuration from both lists."
-  (let* ((wincows (frame-parameter nil 'wincows))
-         (i (- (length wincows)
-               (length (memq wincow wincows)))))
+  (let* ((wincows (frame-parameter nil 'wincows)))
     (modify-frame-parameters
      nil (list (cons 'wincows (delete wincow wincows))))))
 
@@ -254,9 +259,9 @@ Then move up one line.  Prefix arg means move that many lines."
       (while (re-search-forward
               (format "^%sD" (make-string wincows-column ?\040))
               nil t)
-	(forward-char -1)
-	(let ((wincow (wincows-current nil)))
-	  (when wincow
+        (forward-char -1)
+        (let ((wincow (wincows-current nil)))
+          (when wincow
             (wincows-delete-from-list wincow)
             (beginning-of-line)
             (delete-region (point) (progn (forward-line 1) (point))))))))
@@ -351,6 +356,7 @@ For more information, see the function `wincows'."
            (wc . ,(current-window-configuration))
            ;; set-window-configuration does not restore the value
            ;; of point in the current buffer, so record that separately.
+           ;; TODO: save dired-filename in each window
            (point-marker . ,(point-marker))
            ;; TODO: duplicate buffer-lists with buffer objects?
            (bl . ,(delq nil (mapcar
