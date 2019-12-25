@@ -34,7 +34,7 @@
 
 ;; The version 5.0 is well-tested and stable.  However, no more development
 ;; is planned because now the same functionality is available in Emacs 27
-;; by `tab-bar-list' that can be used for the same purpose (switching the
+;; by `tab-switcher' that can be used for the same purpose (switching the
 ;; named persistent window configurations) even without using the tab-bar.
 
 ;;; Suggested keybindings
